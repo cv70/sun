@@ -90,16 +90,16 @@ class LLM(nn.Module):
         )
 
     def forward(self, in_idx):
-        # in_idx: (b, c)
-        b, c = in_idx.shape
+        # in_idx: (batch_size, seq_len)
+        b, s = in_idx.shape
 
-        # (b, c, d)
+        # (batch_size, seq_len, emb_dim)
         tok_embeds = self.tok_emb(in_idx)
-        pos_embeds = self.pos_emb(torch.arange(c, device=in_idx.device))
+        pos_embeds = self.pos_emb(torch.arange(s, device=in_idx.device))
         x = tok_embeds + pos_embeds
-        # x = tok_embeds + self.pe.pe  # (b, c, d)
+        # x = tok_embeds + self.pe.pe[:s, :]  # (batch_size, seq_len, emb_dim)
         x = self.drop_emb(x)
         x = self.transformer_blocks(x)
         x = self.final_norm(x)
-        logits = self.out_head(x) # (b, c, vocab_size)
+        logits = self.out_head(x) # (batch_size, seq_len, vocab_size)
         return logits

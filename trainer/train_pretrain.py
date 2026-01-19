@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader, random_split
 from model.llm import LLM
 from config.config import LLM_CONFIG
 from utils.loss import calc_loss_batch
-from utils.print import generate_and_print_sample
+from utils.generate import generate_and_print_sample
 from utils.eval import evaluate_model
 from dataset.data_loader import create_dataloader_from_txt_file
 from tokenizer.tokenizer import Tokenizer
@@ -75,3 +75,7 @@ if __name__ == "__main__":
     train_epoch(
         model, train_loader, val_loader, optimizer, device, 2, "郭靖挥出一拳", tokenizer
     )
+
+    # 保存模型
+    save_path = "model/sun_base.pth"
+    torch.save(model.state_dict(), save_path)
