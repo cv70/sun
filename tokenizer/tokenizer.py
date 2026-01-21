@@ -1,5 +1,4 @@
 import sentencepiece as spm
-import tiktoken
 import torch
 
 class Tokenizer():
@@ -10,14 +9,10 @@ class Tokenizer():
     def text_to_token_ids(self, text):
         encoded = self.sp_bpe.EncodeAsIds(text)
         return encoded
-        encoded_tensor = torch.tensor(encoded)#.unsqueeze(0) # 添加批次维度
-        return encoded_tensor
 
     def token_ids_to_text(self, token_ids):
         decoded = self.sp_bpe.DecodeIds(token_ids)
         return decoded
-        flat = token_ids.squeeze(0) # 移除批次维度
-        return self.sp_bpe.DecodeIds(flat.tolist())
     
     def vocab_size(self):
         return self.sp_bpe.vocab_size()
@@ -50,16 +45,6 @@ def generate_text_simple(model, idx, max_new_tokens, context_size):
         idx = torch.cat((idx, idx_next), dim=1)  # (b, n_tokens+1)
 
     return idx
-
-
-def text_to_token_ids(text, tokenizer):
-    encoded = tokenizer.encode(text, allowed_special={''})
-    encoded_tensor = torch.tensor(encoded)#.unsqueeze(0) # 添加批次维度
-    return encoded_tensor
-
-def token_ids_to_text(token_ids, tokenizer):
-    flat = token_ids.squeeze(0) # 移除批次维度
-    return tokenizer.decode(flat.tolist())
 
 
 if __name__ == "__main__":

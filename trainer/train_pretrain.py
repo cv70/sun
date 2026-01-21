@@ -49,7 +49,7 @@ if __name__ == "__main__":
     #     config = json.load(f)
     #     GPT_CONFIG_124M.update(config)
 
-    text_filenames = sorted(glob.glob(os.path.join(LLM_CONFIG['data_dir'], "*.txt")))
+    text_filenames = sorted(glob.glob(os.path.join(LLM_CONFIG['data_dir'], "*pretrain.txt")))
     tokenizer = Tokenizer(LLM_CONFIG['tokenizer_path'])
     # print(text_filenames)
     text_filenames = text_filenames
@@ -67,8 +67,7 @@ if __name__ == "__main__":
 
     # Create model and move it to device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    print(device)
+    print(f"Using device: {device}")
 
     model = LLM(LLM_CONFIG).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.1)

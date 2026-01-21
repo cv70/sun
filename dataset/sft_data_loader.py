@@ -57,8 +57,8 @@ def create_sft_dataloader_from_file(tokenizer, sft_file_paths, batch_size, max_l
         with open(sft_file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
             for item in data:
-                questions.append(item['q'])
-                answers.append(item['a'])
+                questions.append(item['question'])
+                answers.append(item['answer'])
 
     dataloader = create_sft_dataloader(tokenizer, questions, answers, batch_size, max_length,
                          shuffle, drop_last, num_workers)
