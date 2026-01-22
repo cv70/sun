@@ -25,6 +25,13 @@ sentencepiece
 
 - 注: 本人实践使用H200, 大家可以根据自己的情况自行选择，如果显存不够或者是训练太慢，可以减少词表大小、降低向量维度、减少上下文长度、减少训练数据、减少transoformer block等等方式进行剪枝以完成训练
 
+<!-- > 进行下面的操作之前，请执行
+    ```shell
+    pip install swanlab
+
+    swanlab login
+    ```
+    打开https://swanlab.cn/space/~/settings 登录你的账号，获取API Key。 -->
 
 ## 训练数据
 预训练数据文件以 pretrain.txt 为后缀结尾，放到 dataset/ 目录下，可以有多个文件

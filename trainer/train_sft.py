@@ -2,13 +2,14 @@ import glob
 import os
 import sys
 import time
-
+import swanlab
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
 from torch.nn.utils.rnn import pad_sequence
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
 
 from model.llm import LLM
 from config.config import LLM_CONFIG
@@ -36,6 +37,7 @@ def train_sft_epoch(model, train_loader, val_loader, optimizer, device, num_epoc
             steps += 1
 
             if steps % eval_freq == 0:
+                # swanlab.log({"loss": loss.item(),"step": steps,"epoch": epoch})
                 train_loss, val_loss = evaluate_sft_model(model, train_loader, val_loader, device, eval_iter)
                 print(f"Epoch {epoch + 1} Step {steps}: Train loss {train_loss}, Val loss {val_loss}")
 
@@ -111,4 +113,9 @@ def train_sft():
 
 
 if __name__ == "__main__":
+    # swanlab.init(
+    #     experiment_name="sun-sft",
+    #     project="sun",
+    #     config={"lr": 1e-5, "epochs": 10}
+    # )
     train_sft()

@@ -56,7 +56,7 @@ if __name__ == "__main__":
     from config.config import LLM_CONFIG
     from model.llm import LLM
 
-    start_context = "郭靖挥出一拳"
+    start_context = "国民党出兵攻打"
     tokenizer = Tokenizer(LLM_CONFIG['tokenizer_path'])
 
     model = LLM(LLM_CONFIG)

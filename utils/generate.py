@@ -31,7 +31,6 @@ def generate_and_print_sample(model, tokenizer, device, prompt, max_new_tokens=5
 
             input_ids = torch.cat([input_ids, next_token], dim=1)
 
-            # ✅ 修复：简化 EOS 检查条件
             if (hasattr(tokenizer, 'eos_id') and
                 next_token.item() == tokenizer.eos_id):
                 print(f"Hit EOS at position {input_ids.size(1)}, stopping.")

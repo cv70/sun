@@ -2,33 +2,38 @@ import json
 import torch
 from torch.utils.data import Dataset, DataLoader
 
-# DPO专用的数据集类，处理用户-助手对话格式
 class DPODataset(Dataset):
     def __init__(self, tokenizer, prompts, chosens, rejects, max_length):
         self.prompts = []
         self.chosens = []
         self.rejects = []
         self.max_length = max_length
+        self.tokenizer = tokenizer
 
         for prompt, chosen, rejected in zip(prompts, chosens, rejects):
-            # todo: 处理一下question和answer超过max_length的情况
-
-            # 处理超过max_length的情况，进行截断
-            prompt_chunk = tokenizer.text_to_token_ids(prompt)
-            chosen_chunk = tokenizer.text_to_token_ids(chosen)
-            rejected_chunk = tokenizer.text_to_token_ids(rejected)
+            # 编码
+            prompt_ids = tokenizer.text_to_token_ids(prompt)
+            chosen_ids = tokenizer.text_to_token_ids(chosen)
+            rejected_ids = tokenizer.text_to_token_ids(rejected)
             
-            self.prompts.append(torch.tensor(prompt_chunk))
-            self.chosens.append(torch.tensor(chosen_chunk))
-            self.rejects.append(torch.tensor(rejected_chunk))
-
+            # 截断
+            prompt_ids = self.truncate_to_max_length(prompt_ids, self.max_length)
+            chosen_ids = self.truncate_to_max_length(chosen_ids, self.max_length)
+            rejected_ids = self.truncate_to_max_length(rejected_ids, self.max_length)
+            
+            self.prompts.append(torch.tensor(prompt_ids))
+            self.chosens.append(torch.tensor(chosen_ids))
+            self.rejects.append(torch.tensor(rejected_ids))
+    
+    def truncate_to_max_length(self, ids, max_len):
+        """截断到最大长度"""
+        return ids[:max_len] if len(ids) > max_len else ids
+    
     def __len__(self):
         return len(self.prompts)
-
+    
     def __getitem__(self, idx):
         return self.prompts[idx], self.chosens[idx], self.rejects[idx]
-
-
 def create_dpo_dataloader(tokenizer, prompts, chosens, rejects, batch_size, max_length,
                          shuffle=True, drop_last=True, num_workers=0):
     """

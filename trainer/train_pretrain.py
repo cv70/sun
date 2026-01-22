@@ -3,10 +3,10 @@ import os
 import sys
 
 import time
-
+import swanlab
 import torch
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
 
 from torch.utils.data import DataLoader, random_split
 from model.llm import LLM
@@ -26,7 +26,7 @@ def train_epoch(
     num_epochs, 
     start_context, 
     tokenizer, 
-    eval_freq=100,      
+    eval_freq=max(1, len(train_loader) // 3),     # 评估频率，每训练多少个step（batch）进行一次验证评估 
     eval_iter=5
 ):
     steps = 0
@@ -46,6 +46,8 @@ def train_epoch(
             steps += 1
 
             if steps % 10 == 0:
+                # 每个batch记录一次
+                # swanlab.log({"loss": loss.item(),"step": steps,"epoch": epoch})
                 print(f"[Epoch {epoch+1}] Step {steps:5d} | Loss: {loss.item():.4f}")
 
             if steps % eval_freq == 0:
@@ -61,6 +63,19 @@ def train_epoch(
 
 
 if __name__ == "__main__":
+    
+    # swanlab.init(
+    #     experiment_name="sun-pretrain",      # 实验名称
+    #     description="SUN模型预训练",          # 实验描述
+    #     project="sun",                       # 项目名称
+    #     config={                             # 超参数配置
+    #         "learning_rate": 1e-5,
+    #         "batch_size": 48,
+    #         "epochs": 10,
+    #         "model": "sun-base",
+    #     }
+    # )
+
     # # Load configuration
     # with open(args.config, 'r') as f:
     #     config = json.load(f)
@@ -73,7 +88,7 @@ if __name__ == "__main__":
     text_filenames = text_filenames
     txt_dataloader = create_dataloader_from_txt_file(
         tokenizer,
-        text_filenames, 128, LLM_CONFIG["context_length"], 1,
+        text_filenames, 48, LLM_CONFIG["context_length"], 1,
         shuffle=True, drop_last=True, num_workers=0
     )
 
@@ -83,12 +98,11 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_data, batch_size=txt_dataloader.batch_size, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=txt_dataloader.batch_size, shuffle=False)
 
-    # Create model and move it to device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     model = LLM(LLM_CONFIG).to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.1)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5, weight_decay=0.1)
     train_epoch(
         model, train_loader, val_loader, optimizer, device, 2, "国民党反动派", tokenizer
     )

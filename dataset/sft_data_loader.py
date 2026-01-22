@@ -7,15 +7,13 @@ class SFTDataset(Dataset):
         self.input_ids = []
         self.labels = []
 
-      # ✅ 修复：优先从 tokenizer.eos_id 获取，否则从 SentencePiece 获取
         if hasattr(tokenizer, "eos_id"):
             eos_id = tokenizer.eos_id
         else:
             try:
                 eos_id = tokenizer.sp_bce.eos_id()
-        except:
-            # SentencePiece 通常用 1 作为 EOS token
-            eos_id = 1
+            except:
+                eos_id = 1
 
         for question, answer in zip(questions, answers):
             question_ids = tokenizer.text_to_token_ids(question)
@@ -26,7 +24,6 @@ class SFTDataset(Dataset):
 
             full_input = question_ids + answer_ids
 
-          # ✅ 修复：截断时确保保留最后的 EOS token
             if len(full_input) > max_length:
                 full_input = full_input[:max_length-1] + [eos_id]
             if len(question_ids) >= max_length:
@@ -65,9 +62,9 @@ def create_sft_dataloader(tokenizer, questions, answers, batch_size, max_length,
 
 def create_sft_dataloader_from_file(tokenizer, filenames, batch_size, max_length,
                                  shuffle=True, drop_last=True, num_workers=0):
-  """
-  从JSON文件创建SFT数据加载器
-  """
+    """
+    从JSON文件创建SFT数据加载器
+    """
     all_questions = []
     all_answers = []
 

@@ -3,12 +3,13 @@ import os
 import sys
 import time
 import torch
+import swanlab
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.data import DataLoader, random_split
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
 from config.config import LLM_CONFIG
 from utils.generate import generate_and_print_sample
 from utils.loss import calc_dpo_loss_batch
@@ -39,6 +40,7 @@ def train_dpo_epoch(model, ref_model, train_loader, val_loader, optimizer, devic
             steps += 1
 
             if steps % eval_freq == 0:
+                # swanlab.log({"loss": loss.item(),"step": steps,"epoch": epoch})
                 train_loss, val_loss = evaluate_dpo_model(model, ref_model, train_loader, val_loader, device, eval_iter)
                 print(f"Epoch {epoch + 1} Step {steps}: Train loss {train_loss}, Val loss {val_loss}")
         
@@ -53,9 +55,9 @@ def train_dpo():
     执行DPO训练流程
     """
     # 加载数据集
-    dpo_filenames = sorted(glob.glob(os.path.join(LLM_CONFIG['data_dir'], "*dpo.json")))
+    dpo_filenames = sorted(glob.glob(os.path.join('../'+LLM_CONFIG['data_dir'], "*dpo.json")))
     
-    tokenizer = Tokenizer(LLM_CONFIG['tokenizer_path'])
+    tokenizer = Tokenizer("../tokenizer/"+LLM_CONFIG['tokenizer_path'])
 
     # 划分训练集和验证集
     dpo_dataloader = create_dpo_dataloader_from_file(
@@ -79,10 +81,10 @@ def train_dpo():
 
     # 加载预训练模型
     model = LLM(LLM_CONFIG).to(device)
-    model.load_state_dict(torch.load("model/sun_sft.pth"))
+    model.load_state_dict(torch.load("../model/sun_sft.pth"))
 
     ref_model = LLM(LLM_CONFIG).to(device)
-    ref_model.load_state_dict(torch.load("model/sun_sft.pth"))
+    ref_model.load_state_dict(torch.load("../model/sun_sft.pth"))
     ref_model.eval()  # 固定参考模型参数
 
     # 优化器
@@ -96,17 +98,23 @@ def train_dpo():
         optimizer, 
         device, 
         2, 
-        "独孤求败一生无敌，为何从未收徒？", 
+        "中农许多都占有土地", 
         tokenizer,
-        eval_freq=500,
+        eval_freq= max(1, len(train_loader) // 3),
         eval_iter=2
     )
 
     # 保存模型
-    save_path = "model/sun_dpo.pth"
+    save_path = "../model/sun_dpo.pth"
     torch.save(model.state_dict(), save_path)
     print(f"Model saved to {save_path}")
 
 
 if __name__ == "__main__":
+    # swanlab.init(
+    #     experiment_name="sun-dpo",
+    #     project="sun",
+    #     config={"lr": 0.0001, "epochs": 2}
+    # )
+    
     train_dpo()
