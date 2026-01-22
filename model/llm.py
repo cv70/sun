@@ -1,108 +1,420 @@
-import math
-import torch
-import torch.nn as nn
-from model.transformer_block import TransformerBlock
-from model.feed_forward import LayerNorm
+"""
+=============================================================================
+大语言模型主模块 (llm.py)
+=============================================================================
 
+【模块作用】
+这个文件实现了完整的大语言模型（LLM）架构，包括：
+1. RotaryPE: 旋转位置编码（RoPE），一种先进的相对位置编码
+2. SinusoidPE: 正弦位置编码，原始Transformer使用的位置编码方式
+3. LLM: 完整的GPT风格语言模型
+
+【相关知识】
+1. 位置编码 (Positional Encoding): 让模型感知token的位置信息
+2. RoPE (Rotary Position Embedding): 通过旋转矩阵编码相对位置
+3. 词嵌入 (Token Embedding): 将离散ID映射为连续向量
+4. 语言模型建模: 预测序列中下一个token的概率
+5. 自回归生成: 基于历史逐个生成token
+"""
+
+# ============================================================================
+# 导入必要的库
+# ============================================================================
+import math  # 数学函数库，用于计算三角函数等
+import torch  # PyTorch深度学习框架
+import torch.nn as nn  # PyTorch神经网络模块
+
+# 导入自定义模块
+from model.transformer_block import TransformerBlock  # Transformer块
+from model.feed_forward import LayerNorm  # 层归一化
+
+
+# ============================================================================
+# RotaryPE类：旋转位置编码
+# ============================================================================
 class RotaryPE(nn.Module):
+    """
+    旋转位置编码 (RoPE - Rotary Position Embedding)
+
+    相关知识：
+    - RoPE是一种相对位置编码方法
+    - 通过旋转变换将位置信息注入到Query和Key中
+    - 相比绝对位置编码，RoPE能更好地处理外推（更长序列）
+    - LLaMA、PaLM等现代大模型都使用RoPE
+    """
+
     def __init__(self, dim, max_position_embeddings=2048, base=10000, device=None):
-        """ 旋转位置编码
-            - dim (int): 旋转嵌入的维度大小。
-            - max_position_embeddings (int): 预计算的最大位置嵌入数，默认为2048。
-            - base (int): 用于计算逆频率的基本频率，默认为10000。
+        """
+        初始化旋转位置编码
+
+        参数:
+            dim: 旋转嵌入的维度大小（必须为偶数）
+            max_position_embeddings: 预计算的最大位置嵌入数
+            base: 用于计算逆频率的基本频率
+            device: 计算设备（CPU/GPU）
+
+        相关知识：
+        - 逆频率 (inverse frequency): 用于计算旋转角度
+        - base=10000是常用的默认值
         """
         super().__init__()
 
-        self.dim = dim
-        self.max_position_embeddings = max_position_embeddings
-        self.base = base
-        # 计算逆频率值，并将其注册为模型的缓冲区
+        # 保存参数到实例变量
+        self.dim = dim  # 旋转维度
+        self.max_position_embeddings = max_position_embeddings  # 最大位置数
+        self.base = base  # 基础频率
+
+        # ========================================================================
+        # 计算逆频率
+        # ========================================================================
+        # 逆频率公式: 1 / (base^(2i/d))
+        # 其中i是维度索引，d是总维度
+        # torch.arange(0, self.dim, 2) 创建 [0, 2, 4, ..., dim-2]
+        # .float() 转换为浮点数
+        # .to(device) 移动到指定设备
         inv_freq = 1.0 / (self.base ** (torch.arange(0, self.dim, 2, dtype=torch.int64).float().to(device) / self.dim))
+
+        # 将逆频率注册为模型的缓冲区
+        # buffer不是可训练参数，但会随模型一起保存和移动
+        # persistent=False表示不会保存到状态字典
         self.register_buffer("inv_freq", inv_freq, persistent=False)
 
-        # 为了支持`torch.jit.trace`功能，立即计算预存储的余弦和正弦缓存
+        # ========================================================================
+        # 预计算余弦和正弦缓存
+        # ========================================================================
+        # 立即计算并缓存所有位置的cos和sin值
+        # 这样可以加速训练时的计算
         self._set_cos_sin_cache(
-            seq_len=max_position_embeddings, device=self.inv_freq.device, dtype=torch.get_default_dtype()
+            seq_len=max_position_embeddings,  # 最大序列长度
+            device=self.inv_freq.device,  # 设备
+            dtype=torch.get_default_dtype()  # 默认数据类型
         )
 
     def _set_cos_sin_cache(self, seq_len, device, dtype):
-        """ 预计算的余弦和正弦缓存
         """
+        预计算余弦和正弦缓存
+
+        参数:
+            seq_len: 序列长度
+            device: 计算设备
+            dtype: 数据类型
+
+        相关知识：
+        - 预计算可以避免每次都重新计算cos和sin
+        - 这是RoPE实现的一个优化技巧
+        """
+        # 保存最大序列长度
         self.max_seq_len_cached = seq_len
-        # 创建一个从0到最大序列长度-1的整数张量，与 inv_freq 具有相同的设备和数据类型
+
+        # ========================================================================
+        # 创建位置索引
+        # ========================================================================
+        # 创建从0到seq_len-1的整数序列
+        # 这些是位置索引: [0, 1, 2, ..., seq_len-1]
+        # device指定在哪个设备上创建张量
         t = torch.arange(self.max_seq_len_cached, device=device, dtype=torch.int64).type_as(self.inv_freq)
 
-        # 计算每个位置与每个维度的频率，形成频谱矩阵
+        # ========================================================================
+        # 计算频率矩阵
+        # ========================================================================
+        # torch.outer计算外积
+        # freqs[i, j] = t[i] * inv_freq[j]
+        # 结果形状: (seq_len, dim/2)
         freqs = torch.outer(t, self.inv_freq)
-        
-        # 不同于论文中的实现，这里采用了不同的排列方式以获得相同的计算结果
+
+        # ========================================================================
+        # 构建嵌入向量
+        # ========================================================================
+        # 将频率向量复制一份并拼接
+        # 这是为了与论文实现保持一致的计算结果
+        # torch.cat在最后一个维度上拼接
+        # 结果形状: (seq_len, dim)
         emb = torch.cat((freqs, freqs), dim=-1)
+
+        # ========================================================================
+        # 计算并缓存cos和sin
+        # ========================================================================
+        # .cos()计算余弦值，.sin()计算正弦值
+        # .to(dtype)转换数据类型
         self.register_buffer("cos_cached", emb.cos().to(dtype), persistent=False)
         self.register_buffer("sin_cached", emb.sin().to(dtype), persistent=False)
 
     def forward(self, x, seq_len=None):
-        # x: [bs, num_attention_heads, seq_len, head_size]
+        """
+        前向传播：返回位置编码的cos和sin
+
+        参数:
+            x: 输入张量，形状为[bs, num_attention_heads, seq_len, head_size]
+            seq_len: 序列长度（如果为None则从x推断）
+
+        返回:
+            cos, sin: 位置编码的余弦和正弦值
+
+        相关知识：
+        - 实际的旋转操作在注意力计算中完成
+        - 这个方法只是提供旋转所需的cos和sin值
+        """
+        # 如果序列长度超过缓存的长度，重新计算缓存
         if seq_len > self.max_seq_len_cached:
             self._set_cos_sin_cache(seq_len=seq_len, device=x.device, dtype=x.dtype)
 
+        # 返回指定长度的cos和sin
+        # 只返回前seq_len个位置的编码
         return (
             self.cos_cached[:seq_len].to(dtype=x.dtype),
             self.sin_cached[:seq_len].to(dtype=x.dtype),
         )
 
-class SinusoidPE(nn.Module):
-    def __init__(self, ctx_len, emb_dim):
-        super().__init__()
-        # 创建位置编码矩阵 [c, d]
-        pe = torch.zeros(ctx_len, emb_dim)
-        position = torch.arange(0, ctx_len).unsqueeze(1)
-        
-        # 计算频率除数: 10000^(2i/d_model)
-        div_term = torch.exp(torch.arange(0, emb_dim, 2) * 
-                           -(math.log(10000.0) / emb_dim))
-        
-        # 应用正弦余弦函数
-        pe[:, 0::2] = torch.sin(position * div_term)  # 偶数索引: 正弦
-        pe[:, 1::2] = torch.cos(position * div_term)  # 奇数索引: 余弦
 
-        # 增加批次维度 [c, d]
-        pe.unsqueeze(0)
-        
-        # 注册为缓冲区 (不参与训练)
+# ============================================================================
+# SinusoidPE类：正弦位置编码
+# ============================================================================
+class SinusoidPE(nn.Module):
+    """
+    正弦位置编码 (Sinusoidal Positional Encoding)
+
+    相关知识：
+    - 这是原始Transformer论文中使用的方法
+    - 使用不同频率的正弦和余弦函数编码位置
+    - 优点：可以处理比训练时更长的序列（外推）
+    - 缺点：不如RoPE等新方法效果好
+    """
+
+    def __init__(self, ctx_len, emb_dim):
+        """
+        初始化正弦位置编码
+
+        参数:
+            ctx_len: 上下文长度（最大序列长度）
+            emb_dim: 嵌入维度
+        """
+        super().__init__()
+
+        # ========================================================================
+        # 创建位置编码矩阵
+        # ========================================================================
+        # 形状: (ctx_len, emb_dim)
+        # 每行是一个位置的编码向量
+        pe = torch.zeros(ctx_len, emb_dim)
+
+        # 创建位置索引: [0, 1, 2, ..., ctx_len-1]
+        # unsqueeze(1)增加一个维度，变成列向量
+        position = torch.arange(0, ctx_len).unsqueeze(1)
+
+        # ========================================================================
+        # 计算频率除数
+        # ========================================================================
+        # 公式: 10000^(-2i/d)
+        # torch.arange(0, emb_dim, 2) 创建偶数索引: [0, 2, 4, ...]
+        # math.log(10000.0) / emb_dim 计算缩放因子
+        # -(math.log(10000.0) / emb_dim) 取负
+        div_term = torch.exp(torch.arange(0, emb_dim, 2) *
+                           -(math.log(10000.0) / emb_dim))
+
+        # ========================================================================
+        # 应用正弦和余弦函数
+        # ========================================================================
+        # 偶数索引使用正弦函数
+        # pe[:, 0::2] 选择所有行的偶数列
+        # position * div_term 广播相乘
+        pe[:, 0::2] = torch.sin(position * div_term)
+
+        # 奇数索引使用余弦函数
+        # pe[:, 1::2] 选择所有行的奇数列
+        pe[:, 1::2] = torch.cos(position * div_term)
+
+        # ========================================================================
+        # 增加批次维度
+        # ========================================================================
+        # unsqueeze(0)在前面增加一个维度
+        # 形状从 (ctx_len, emb_dim) 变为 (1, ctx_len, emb_dim)
+        # 这样可以直接与批次数据相加
+        pe = pe.unsqueeze(0)
+
+        # ========================================================================
+        # 注册为缓冲区
+        # ========================================================================
+        # 缓冲区不是可训练参数，但会随模型一起保存
         self.register_buffer('pe', pe)
 
 
+# ============================================================================
+# LLM类：完整的大语言模型
+# ============================================================================
 class LLM(nn.Module):
+    """
+    大语言模型（GPT架构）
+
+    相关知识：
+    - GPT (Generative Pre-trained Transformer): 生成式预训练Transformer
+    - 架构：Embedding -> Transformer Blocks -> LM Head
+    - 用于语言建模：预测序列中的下一个token
+    - 可以通过自回归方式生成文本
+    """
+
     def __init__(self, cfg):
+        """
+        初始化语言模型
+
+        参数:
+            cfg: 配置字典，包含模型的所有超参数
+
+        相关知识：
+        - 模型结构：词嵌入 + 位置嵌入 + Transformer块 + 输出层
+        """
+        # 调用父类构造函数
         super().__init__()
+
+        # 保存上下文长度
         self.ctx_len = cfg["context_length"]
+
+        # ========================================================================
+        # 创建词嵌入层
+        # ========================================================================
+        # 将离散的token ID映射为连续的向量
+        # nn.Embedding(vocab_size, embedding_dim)
+        # 形状: (vocab_size, emb_dim)
+        # 例如：16384个token，每个映射为256维向量
         self.tok_emb = nn.Embedding(cfg["vocab_size"], cfg["emb_dim"])
+
+        # ========================================================================
+        # 创建可学习的位置嵌入层
+        # ========================================================================
+        # 为每个位置(0到context_length-1)创建一个可学习的嵌入向量
+        # 形状: (context_length, emb_dim)
         self.pos_emb = nn.Embedding(cfg["context_length"], cfg["emb_dim"])
+
+        # 创建正弦位置编码对象（虽然在这个实现中未使用）
+        # 可以选择使用可学习的位置嵌入或固定的正弦编码
         self.pe = SinusoidPE(cfg["context_length"], cfg["emb_dim"])
+
+        # ========================================================================
+        # 创建Dropout层
+        # ========================================================================
+        # 在嵌入后应用dropout，防止过拟合
         self.drop_emb = nn.Dropout(cfg["drop_rate"])
-        
+
+        # ========================================================================
+        # 创建Transformer块堆叠
+        # ========================================================================
+        # 使用nn.Sequential按顺序执行多个Transformer块
+        # *[...]是解包操作，将列表中的元素作为独立的参数传递
+        # range(cfg["n_layers"])创建n_layers个TransformerBlock
         self.transformer_blocks = nn.Sequential(
-            *[TransformerBlock(cfg) for _ in range(cfg["n_layers"])])
-        
+            *[TransformerBlock(cfg) for _ in range(cfg["n_layers"])]
+        )
+
+        # ========================================================================
+        # 创建最终的层归一化
+        # ========================================================================
+        # 在所有Transformer块之后应用一次归一化
+        # 这是GPT架构的标准做法
         self.final_norm = LayerNorm(cfg["emb_dim"])
+
+        # ========================================================================
+        # 创建输出头
+        # ========================================================================
+        # 将隐藏状态映射回词表大小的logits
+        # bias=False表示不使用偏置项
+        # 形状: (emb_dim, vocab_size)
+        # 注意：这个层与tok_emb的权重可以共享（虽然这里没有共享）
         self.out_head = nn.Linear(
             cfg["emb_dim"], cfg["vocab_size"], bias=False
         )
 
-        # 使用bfloat16精度
+        # ========================================================================
+        # 设置数据类型为bfloat16
+        # ========================================================================
+        # bfloat16是16位浮点数，比float32节省内存
+        # 但保持指数范围，适合训练大模型
+        # .bfloat16()将模型的所有参数转换为bfloat16类型
         self.bfloat16()
 
     def forward(self, in_idx):
-        # in_idx: (batch_size, seq_len)
-        b, s = in_idx.shape
+        """
+        前向传播：计算模型输出
 
-        # (batch_size, seq_len, emb_dim)
+        参数:
+            in_idx: 输入的token ID序列
+                    形状: (batch_size, seq_len)
+                    batch_size: 批次大小（一次处理多少个序列）
+                    seq_len: 序列长度（每个序列有多少个token）
+
+        返回:
+            logits: 模型输出的预测分数
+                    形状: (batch_size, seq_len, vocab_size)
+                    vocab_size: 词表大小（每个位置预测所有可能的token）
+
+        相关知识：
+        - 语言模型的输出是每个位置对所有token的预测分数
+        - 这些分数称为logits，需要经过softmax才能得到概率
+        """
+        # ========================================================================
+        # 步骤1: 解析输入形状
+        # ========================================================================
+        b, s = in_idx.shape
+        # b: batch_size（批次大小）
+        # s: seq_len（序列长度）
+
+        # ========================================================================
+        # 步骤2: 计算词嵌入
+        # ========================================================================
+        # 将token ID转换为嵌入向量
+        # 形状变化: (batch_size, seq_len) -> (batch_size, seq_len, emb_dim)
         tok_embeds = self.tok_emb(in_idx)
-        pos_embeds = self.pos_emb(torch.arange(s, device=in_idx.device))
+
+        # ========================================================================
+        # 步骤3: 计算位置嵌入
+        # ========================================================================
+        # 为序列中的每个位置创建位置索引
+        # torch.arange(s) 创建 [0, 1, 2, ..., s-1]
+        # .to(device) 确保在正确的设备上创建
+        # 形状: (seq_len,)
+        pos_indices = torch.arange(s, device=in_idx.device)
+
+        # 将位置索引转换为位置嵌入
+        # 形状: (seq_len, emb_dim)
+        pos_embeds = self.pos_emb(pos_indices)
+
+        # ========================================================================
+        # 步骤4: 融合词嵌入和位置嵌入
+        # ========================================================================
+        # 将词嵌入和位置嵌入相加
+        # 广播机制会自动处理维度匹配
+        # 形状: (batch_size, seq_len, emb_dim)
         x = tok_embeds + pos_embeds
-        # x = tok_embeds + self.pe.pe[:s, :]  # (batch_size, seq_len, emb_dim)
+
+        # 注释掉的代码：使用固定的正弦位置编码
+        # self.pe.pe[:s, :] 获取前s个位置的正弦编码
+        # x = tok_embeds + self.pe.pe[:s, :]
+
+        # ========================================================================
+        # 步骤5: 应用Dropout
+        # ========================================================================
+        # 在嵌入后应用dropout正则化
         x = self.drop_emb(x)
+
+        # ========================================================================
+        # 步骤6: 通过Transformer块堆叠
+        # ========================================================================
+        # 按顺序通过所有Transformer块
+        # 形状保持不变: (batch_size, seq_len, emb_dim)
         x = self.transformer_blocks(x)
+
+        # ========================================================================
+        # 步骤7: 最终归一化
+        # ========================================================================
+        # 应用最后的层归一化
         x = self.final_norm(x)
-        logits = self.out_head(x) # (batch_size, seq_len, vocab_size)
+
+        # ========================================================================
+        # 步骤8: 输出头映射到词表
+        # ========================================================================
+        # 将隐藏状态映射为词表大小的logits
+        # 形状变化: (batch_size, seq_len, emb_dim) -> (batch_size, seq_len, vocab_size)
+        # 每个位置的输出是一个长度为vocab_size的向量
+        # 表示对词表中每个token的预测分数
+        logits = self.out_head(x)
+
+        # 返回logits
         return logits
