@@ -1,5 +1,13 @@
+import os
+import sys
 import sentencepiece as spm
 import torch
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from config.config import LLM_CONFIG
+from model.llm import LLM
+from utils.generate import generate
 
 class Tokenizer():
     def __init__(self, spm_model_path):
@@ -8,8 +16,8 @@ class Tokenizer():
         #  添加 eos_id 属性
         self.eos_id = self.sp_bpe.eos_id()
 
-    def text_to_token_ids(self, text):
-        encoded = self.sp_bpe.EncodeAsIds(text)
+    def text_to_token_ids(self, text, add_eos=False):
+        encoded = self.sp_bpe.EncodeAsIds(text, add_eos=add_eos)
         return encoded
 
     def token_ids_to_text(self, token_ids):

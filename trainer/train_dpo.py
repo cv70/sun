@@ -88,7 +88,7 @@ def train_dpo():
     ref_model.eval()  # 固定参考模型参数
 
     # 优化器
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.1)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5, weight_decay=0.1)
 
     train_dpo_epoch(
         model, 

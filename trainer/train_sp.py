@@ -4,7 +4,7 @@ import glob
 
 def tain_chinese_spm(input_txt_dir, vocab_size, output_dir="."):
     # 保存的模型名称
-    prefix = os.path.join(output_dir, f"spm_{vocab_size}")
+    prefix = os.path.join(output_dir, "spm")
 
     text_filenames = sorted(glob.glob(os.path.join(input_txt_dir, "*.md")))
     print("file list: ", text_filenames)

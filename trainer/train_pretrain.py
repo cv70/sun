@@ -110,3 +110,8 @@ if __name__ == "__main__":
     # 保存模型
     save_path = "../model/sun_base.pth"
     torch.save(model.state_dict(), save_path)
+    print(f"Model saved to {save_path}")
+
+
+if __name__ == "__main__":
+    train_pretrain()

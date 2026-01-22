@@ -23,7 +23,7 @@ PyTorch
 sentencepiece
 ```
 
-- 注: 本人实践使用H200, 大家可以根据自己的情况自行选择，如果显存不够或者是训练太慢，可以减少词表大小、降低向量维度、减少上下文长度、减少训练数据、减少transoformer block等等方式进行剪枝以完成训练
+- 注: 本人实践使用H200, 预训练大概是`10358MiB`的显存占用，大家可以根据自己的情况自行选择，如果显存不够或者是训练太慢，可以减少词表大小、降低向量维度、减少上下文长度、减少训练数据、减少transoformer block等等方式进行剪枝以完成训练
 
 <!-- > 进行下面的操作之前，请执行
     ```shell
@@ -65,7 +65,10 @@ DPO训练数据文件以 dpo.json 为后缀结尾，放到 dataset/ 目录下，
 
 
 ## 分词(Tokenizer)
-训练Tokenizer，用于将人类可读的文本转换到数字空间中的数字ID序列，最终生成 分词模型文件 (tokenizer/xxx.model) 与 词表文件 (tokenizer/xxx.vocab)
+训练Tokenizer，用于将人类可读的文本转换到数字空间中的数字ID序列，最终生成 分词模型文件 (tokenizer/spm.model) 与 词表文件 (tokenizer/spm.vocab)
+
+- 训练数据文件位置
+dataset/*.txt
 
 这里推荐使用https://github.com/zeta111/maoxuan.github.io/tree/master 毛选数据集，将所有的md文件放到dataset目录下，
 

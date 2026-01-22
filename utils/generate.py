@@ -1,10 +1,4 @@
-import os
-import sys
 import torch
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from tokenizer.tokenizer import generate_text_simple
 
 
 def generate_and_print_sample(model, tokenizer, device, prompt, max_new_tokens=50,
