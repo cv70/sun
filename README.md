@@ -60,14 +60,19 @@ DPO训练数据文件以 dpo.json 为后缀结尾，放到 dataset/ 目录下，
 ## 分词(Tokenizer)
 训练Tokenizer，用于将人类可读的文本转换到数字空间中的数字ID序列，最终生成 分词模型文件 (tokenizer/xxx.model) 与 词表文件 (tokenizer/xxx.vocab)
 
+这里推荐使用https://github.com/zeta111/maoxuan.github.io/tree/master 毛选数据集，将所有的md文件放到dataset目录下，
+
+执行脚本之前，可以在main方法中关闭调tain_chinses_spm方法的注释，观察训练过程
+
 - 训练脚本
 ```python
 python trainer/train_sp.py
 ```
 
-
 ## 预训练(PTM)
 学习知识，构建模型的模糊认知，让模型在海量文本中学习语言的统计规律、事实知识和基础推理能力，最终生成 基座模型文件 (model/sun_base.pth)
+
+这里训练会使用到原本准备的毛选的md文件，上文中规定了预训练的数据集格式为pretrain结尾的txt，但此处为了方便，修改为md。
 
 - 训练脚本
 ```python

@@ -30,20 +30,23 @@ def calc_loss_loader(data_loader, model, device, num_batches=None):
 
 # 计算SFT任务的批次损失
 def calc_sft_loss_batch(input_batch, target_batch, model, device):
-    # input_batch: (batch_size, seq_len)
-    # target_batch: (batch_size)
-    input_batch, target_batch = input_batch.to(device), target_batch.to(device)
+    input_batch = input_batch.to(device)
+    target_batch = target_batch.to(device)
+
     logits = model(input_batch)  # (batch_size, seq_len, vocab_size)
 
-    # 只计算整个序列预测出来的下一词的损失
-    logits = logits[:, -1, :] # (batch_size, vocab_size)
-    print(f"logits shape: {logits.shape}")
-    print(f"target_batch shape: {target_batch.shape}")
+    # 展平 logits 和 target 以计算 token 级别 loss
+    batch_size, seq_len, vocab_size = logits.shape
+    logits_flat = logits.reshape(-1, vocab_size)        # (batch_size * seq_len, vocab_size)
+    targets_flat = target_batch.reshape(-1)             # (batch_size * seq_len,)
 
-    return torch.nn.functional.cross_entropy(
-        logits, 
-        target_batch
+    # 使用 ignore_index=-100 自动忽略 prompt 部分
+    loss = torch.nn.functional.cross_entropy(
+        logits_flat,
+        targets_flat,
+        ignore_index=-100
     )
+    return loss
 
 # 计算SFT任务的数据加载器的总损失（平均损失）
 def calc_sft_loss_loader(data_loader, model, device, num_batches=None):

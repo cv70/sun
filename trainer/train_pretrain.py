@@ -17,30 +17,47 @@ from utils.eval import evaluate_model
 from dataset.data_loader import create_dataloader_from_txt_file
 from tokenizer.tokenizer import Tokenizer
 
-def train_epoch(model, train_loader, val_loader, optimizer, device, num_epochs, start_context, tokenizer, eval_freq=1000, eval_iter=5):
-    train_losses, val_losses = [], []
+def train_epoch(
+    model, 
+    train_loader, 
+    val_loader, 
+    optimizer, 
+    device, 
+    num_epochs, 
+    start_context, 
+    tokenizer, 
+    eval_freq=100,      
+    eval_iter=5
+):
     steps = 0
-    # 训练循环
     for epoch in range(num_epochs):
+        print(f"\n{'='*50}")
+        print(f" Starting Epoch {epoch + 1}/{num_epochs}")
+        print(f"{'='*50}")
+        
         start_time = time.time()
         model.train()
-        for input_batch, target_batch in train_loader:
-            optimizer.zero_grad() # 梯度清零
+        
+        for batch_idx, (input_batch, target_batch) in enumerate(train_loader):
+            optimizer.zero_grad()
             loss = calc_loss_batch(input_batch, target_batch, model, device)
-            loss.backward() # 反向传播，计算损失梯度
-            optimizer.step() # 更新参数
+            loss.backward()
+            optimizer.step()
             steps += 1
 
-            if steps % eval_freq == 0:
-                train_loss, val_loss = evaluate_model(model, train_loader, val_loader, device, eval_iter)
-                train_losses.append(train_loss)
-                val_losses.append(val_losses)
-                print(f"Epoch {epoch + 1} Step {steps}: Train loss {train_loss}, Val loss {val_loss}")
+            if steps % 10 == 0:
+                print(f"[Epoch {epoch+1}] Step {steps:5d} | Loss: {loss.item():.4f}")
 
-        generate_and_print_sample(
-            model, tokenizer, device, start_context
-        )
-        print(f"Epoch {epoch + 1}/{num_epochs}, Cost Time: {time.time() - start_time:.2f}s")
+            if steps % eval_freq == 0:
+                print(f"\n Evaluating at Step {steps}...")
+                train_loss, val_loss = evaluate_model(
+                    model, train_loader, val_loader, device, eval_iter
+                )
+                print(f" Eval Result → Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}\n")
+
+        print(f"\n Generating sample after epoch {epoch + 1}:")
+        generate_and_print_sample(model, tokenizer, device, start_context)
+        print(f"\n Epoch {epoch + 1} finished in {time.time() - start_time:.2f}s")
 
 
 if __name__ == "__main__":
@@ -49,9 +66,10 @@ if __name__ == "__main__":
     #     config = json.load(f)
     #     GPT_CONFIG_124M.update(config)
 
-    text_filenames = sorted(glob.glob(os.path.join(LLM_CONFIG['data_dir'], "*pretrain.txt")))
-    tokenizer = Tokenizer(LLM_CONFIG['tokenizer_path'])
-    # print(text_filenames)
+    # text_filenames = sorted(glob.glob(os.path.join(LLM_CONFIG['data_dir'], "*pretrain.txt")))
+    text_filenames = sorted(glob.glob(os.path.join("../"+LLM_CONFIG['data_dir'], "*.md")))
+    tokenizer = Tokenizer("../tokenizer/"+LLM_CONFIG['tokenizer_path'])
+    # print(text_filenames)pret
     text_filenames = text_filenames
     txt_dataloader = create_dataloader_from_txt_file(
         tokenizer,
@@ -72,9 +90,9 @@ if __name__ == "__main__":
     model = LLM(LLM_CONFIG).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.1)
     train_epoch(
-        model, train_loader, val_loader, optimizer, device, 2, "郭靖挥出一拳", tokenizer
+        model, train_loader, val_loader, optimizer, device, 2, "国民党反动派", tokenizer
     )
 
     # 保存模型
-    save_path = "model/sun_base.pth"
+    save_path = "../model/sun_base.pth"
     torch.save(model.state_dict(), save_path)

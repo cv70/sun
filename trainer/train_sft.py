@@ -6,6 +6,7 @@ import time
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
+from torch.nn.utils.rnn import pad_sequence
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -42,22 +43,28 @@ def train_sft_epoch(model, train_loader, val_loader, optimizer, device, num_epoc
             model, tokenizer, device, start_context
         )
         print(f"Epoch {epoch + 1}/{num_epochs}, Cost Time: {time.time() - start_time:.2f}s")
-
+def collate_fn(batch):
+    input_ids, labels = zip(*batch)
+    
+    input_ids_padded = pad_sequence(input_ids, batch_first=True, padding_value=0)
+    labels_padded = pad_sequence(labels, batch_first=True, padding_value=-100)
+    
+    return input_ids_padded, labels_padded
 
 def train_sft():
     """
     执行SFT训练流程
     """
     # 加载数据集
-    sft_filenames = sorted(glob.glob(os.path.join(LLM_CONFIG['data_dir'], "*sft.json")))
-
-    tokenizer = Tokenizer(LLM_CONFIG['tokenizer_path'])
+    sft_filenames = sorted(glob.glob(os.path.join('../'+LLM_CONFIG['data_dir'], "*sft.json")))
+    
+    tokenizer = Tokenizer("../tokenizer/"+LLM_CONFIG['tokenizer_path'])
     
     # 创建SFT数据加载器
     sft_dataloader = create_sft_dataloader_from_file(
         tokenizer,
         sft_filenames,
-        1,  # SFT通常使用较小的batch size
+        1, 
         LLM_CONFIG["context_length"], 
         shuffle=True, 
         drop_last=True, 
@@ -68,8 +75,8 @@ def train_sft():
     total_data = len(sft_dataloader.dataset)
     train_data_num = int(total_data * 0.9)
     train_data, val_data = random_split(sft_dataloader.dataset, [train_data_num, total_data - train_data_num])
-    train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
-    val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
+    train_loader = DataLoader(train_data, batch_size=1, shuffle=True,collate_fn=collate_fn)
+    val_loader = DataLoader(val_data, batch_size=1, shuffle=False,collate_fn=collate_fn)
 
     # 创建模型并移动到设备
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -77,10 +84,10 @@ def train_sft():
 
     # 加载预训练模型
     model = LLM(LLM_CONFIG).to(device)
-    model.load_state_dict(torch.load("model/sun_base.pth"))
+    model.load_state_dict(torch.load("../model/sun_base.pth"))
 
     # 设置优化器
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.1)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5, weight_decay=0.1)
     
     # 开始训练
     print("Starting SFT training...")
@@ -90,15 +97,15 @@ def train_sft():
         val_loader, 
         optimizer, 
         device, 
-        2, 
-        "独孤求败一生无敌，为何从未收徒？", 
+        10, 
+        "在毛泽东同志的带领下", 
         tokenizer,
         eval_freq=500,
         eval_iter=2
     )
     
     # 保存模型
-    save_path = "model/sun_sft.pth"
+    save_path = "../model/sun_sft.pth"
     torch.save(model.state_dict(), save_path)
     print(f"Model saved to {save_path}")
 

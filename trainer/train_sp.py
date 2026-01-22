@@ -6,7 +6,7 @@ def tain_chinses_spm(input_txt_dir, vocab_size, output_dir="."):
     # 保存的模型名称
     prefix = os.path.join(output_dir, f"spm_{vocab_size}")
 
-    text_filenames = sorted(glob.glob(os.path.join(input_txt_dir, "*.txt")))
+    text_filenames = sorted(glob.glob(os.path.join(input_txt_dir, "*.md")))
     print("file list: ", text_filenames)
 
     # 2) train the sentencepiece model
@@ -33,7 +33,7 @@ def test_chinese_spm(spm_model_path):
     sp_bpe = spm.SentencePieceProcessor() 
     sp_bpe.load(spm_model_path)
 
-    input_txt = '孔子有云：有朋自远方来，不亦乐乎'
+    input_txt = '为了中华民族的伟大复兴而奋斗'
 
     pieces = sp_bpe.EncodeAsPieces(input_txt)
     print(pieces)
@@ -51,8 +51,8 @@ def test_chinese_spm(spm_model_path):
     print(parsed_ids)
 
 if __name__ == "__main__":
-    input_txt_dir = "dataset"
+    input_txt_dir = "../dataset"
     vocab_size = 16384
-    output_dir = "tokenizer"
-    # tain_chinses_spm(input_txt_dir, vocab_size, output_dir)
+    output_dir = "../tokenizer"
+    tain_chinses_spm(input_txt_dir, vocab_size, output_dir)
     test_chinese_spm(f"{output_dir}/spm_16384.model")
