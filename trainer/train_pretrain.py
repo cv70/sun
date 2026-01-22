@@ -17,7 +17,7 @@ from utils.eval import evaluate_model
 from dataset.data_loader import create_dataloader_from_txt_file
 from tokenizer.tokenizer import Tokenizer
 
-def train_epoch(model, train_loader, val_loader, optimizer, device, num_epochs, start_context, tokenizer, eval_freq=1000, eval_iter=5):
+def train_pretrain_epoch(model, train_loader, val_loader, optimizer, device, num_epochs, start_context, tokenizer, eval_freq=1000, eval_iter=5):
     train_losses, val_losses = [], []
     steps = 0
     # 训练循环
@@ -43,7 +43,7 @@ def train_epoch(model, train_loader, val_loader, optimizer, device, num_epochs, 
         print(f"Epoch {epoch + 1}/{num_epochs}, Cost Time: {time.time() - start_time:.2f}s")
 
 
-if __name__ == "__main__":
+def train_pretrain():
     # # Load configuration
     # with open(args.config, 'r') as f:
     #     config = json.load(f)
@@ -70,11 +70,16 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
 
     model = LLM(LLM_CONFIG).to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.1)
-    train_epoch(
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=0.1)
+    train_pretrain_epoch(
         model, train_loader, val_loader, optimizer, device, 2, "郭靖挥出一拳", tokenizer
     )
 
     # 保存模型
     save_path = "model/sun_base.pth"
     torch.save(model.state_dict(), save_path)
+    print(f"Model saved to {save_path}")
+
+
+if __name__ == "__main__":
+    train_pretrain()

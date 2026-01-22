@@ -12,7 +12,7 @@ class SFTDataset(Dataset):
             # todo: 处理一下question和answer超过max_length的情况
 
             input_chunk = tokenizer.text_to_token_ids(question)
-            output_chunk = tokenizer.text_to_token_ids(answer) # todo: 加上eos_token
+            output_chunk = tokenizer.text_to_token_ids(answer, add_eos=True)
 
             for i in range(len(output_chunk)):
                 self.input_ids.append(torch.tensor(input_chunk + output_chunk[:i])) # 输入是前i个token

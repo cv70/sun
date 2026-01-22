@@ -1,6 +1,6 @@
 LLM_CONFIG= {
     "data_dir": "dataset",
-    "tokenizer_path": "tokenizer/spm_16384.model",
+    "tokenizer_path": "tokenizer/spm.model",
     "vocab_size": 16384,    # Vocabulary size
     "context_length": 256,  # Context length
     "emb_dim": 256,         # Embedding dimension

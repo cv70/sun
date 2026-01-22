@@ -15,8 +15,8 @@ class DPODataset(Dataset):
 
             # 处理超过max_length的情况，进行截断
             prompt_chunk = tokenizer.text_to_token_ids(prompt)
-            chosen_chunk = tokenizer.text_to_token_ids(chosen)
-            rejected_chunk = tokenizer.text_to_token_ids(rejected)
+            chosen_chunk = tokenizer.text_to_token_ids(chosen, add_eos=True)
+            rejected_chunk = tokenizer.text_to_token_ids(rejected, add_eos=True)
             
             self.prompts.append(torch.tensor(prompt_chunk))
             self.chosens.append(torch.tensor(chosen_chunk))

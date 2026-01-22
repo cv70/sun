@@ -2,9 +2,9 @@ import sentencepiece as spm
 import os
 import glob
 
-def tain_chinses_spm(input_txt_dir, vocab_size, output_dir="."):
+def tain_chinses_spm(input_txt_dir, vocab_size, output_dir="./tokenizer"):
     # 保存的模型名称
-    prefix = os.path.join(output_dir, f"spm_{vocab_size}")
+    prefix = os.path.join(output_dir, "spm")
 
     text_filenames = sorted(glob.glob(os.path.join(input_txt_dir, "*.txt")))
     print("file list: ", text_filenames)
@@ -54,5 +54,5 @@ if __name__ == "__main__":
     input_txt_dir = "dataset"
     vocab_size = 16384
     output_dir = "tokenizer"
-    # tain_chinses_spm(input_txt_dir, vocab_size, output_dir)
-    test_chinese_spm(f"{output_dir}/spm_16384.model")
+    tain_chinses_spm(input_txt_dir, vocab_size, output_dir)
+    test_chinese_spm(f"{output_dir}/spm.model")

@@ -80,7 +80,7 @@ def train_sft():
     model.load_state_dict(torch.load("model/sun_base.pth"))
 
     # 设置优化器
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001, weight_decay=0.1)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.1)
     
     # 开始训练
     print("Starting SFT training...")

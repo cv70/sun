@@ -89,6 +89,9 @@ class LLM(nn.Module):
             cfg["emb_dim"], cfg["vocab_size"], bias=False
         )
 
+        # 使用bfloat16精度
+        self.bfloat16()
+
     def forward(self, in_idx):
         # in_idx: (batch_size, seq_len)
         b, s = in_idx.shape

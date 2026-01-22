@@ -37,8 +37,6 @@ def calc_sft_loss_batch(input_batch, target_batch, model, device):
 
     # 只计算整个序列预测出来的下一词的损失
     logits = logits[:, -1, :] # (batch_size, vocab_size)
-    print(f"logits shape: {logits.shape}")
-    print(f"target_batch shape: {target_batch.shape}")
 
     return torch.nn.functional.cross_entropy(
         logits, 
