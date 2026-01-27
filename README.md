@@ -25,6 +25,13 @@ sentencepiece
 
 - 注: 本人实践使用H200, 预训练大概是`10358MiB`的显存占用，大家可以根据自己的情况自行选择，如果显存不够或者是训练太慢，可以减少词表大小、降低向量维度、减少上下文长度、减少训练数据、减少transoformer block等等方式进行剪枝以完成训练
 
+<!-- > 进行下面的操作之前，请执行
+    ```shell
+    pip install swanlab
+
+    swanlab login
+    ```
+    打开https://swanlab.cn/space/~/settings 登录你的账号，获取API Key。 -->
 
 ## 训练数据
 预训练数据文件以 pretrain.txt 为后缀结尾，放到 dataset/ 目录下，可以有多个文件
@@ -63,17 +70,19 @@ DPO训练数据文件以 dpo.json 为后缀结尾，放到 dataset/ 目录下，
 - 训练数据文件位置
 dataset/*.txt
 
+这里推荐使用https://github.com/zeta111/maoxuan.github.io/tree/master 毛选数据集，将所有的md文件放到dataset目录下，
+
+执行脚本之前，可以在main方法中关闭调tain_chinses_spm方法的注释，观察训练过程
+
 - 训练脚本
 ```python
 python trainer/train_sp.py
 ```
 
-
 ## 预训练(PTM)
 学习知识，构建模型的模糊认知，让模型在海量文本中学习语言的统计规律、事实知识和基础推理能力，最终生成 基座模型文件 (model/sun_base.pth)
 
-- 训练数据文件位置
-dataset/*pretrain.txt
+这里训练会使用到原本准备的毛选的md文件，上文中规定了预训练的数据集格式为pretrain结尾的txt，但此处为了方便，修改为md。
 
 - 训练脚本
 ```python
